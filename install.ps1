@@ -129,9 +129,9 @@ if (-not $NoAutoStart) {
 # Lev quer instalacao invisivel pro usuario: nada no Desktop, nada no Start
 # Menu. O app sobe minimizado via HKCU\...\Run e fica so na tray. Pra criar
 # o atalho manualmente, passe -WithDesktopShortcut.
+$DesktopDir = [Environment]::GetFolderPath('Desktop')
+$ShortcutPath = Join-Path $DesktopDir 'VoiceLev.lnk'
 if ($WithDesktopShortcut) {
-    $DesktopDir = [Environment]::GetFolderPath('Desktop')
-    $ShortcutPath = Join-Path $DesktopDir 'VoiceLev.lnk'
     $WScript = New-Object -ComObject WScript.Shell
     $Shortcut = $WScript.CreateShortcut($ShortcutPath)
     $Shortcut.TargetPath = $ExePath
@@ -139,6 +139,14 @@ if ($WithDesktopShortcut) {
     $Shortcut.Description = "VoiceLev $Version -- Assistente de voz da Lev"
     $Shortcut.Save()
     Write-Host "Shortcut: $ShortcutPath" -ForegroundColor DarkGray
+} else {
+    # Re-instalacao limpa: se existia atalho de uma instalacao anterior
+    # (releases <= v0.10.2 criavam por default), apaga agora pra cumprir a
+    # politica "zero footprint visivel".
+    if (Test-Path -LiteralPath $ShortcutPath) {
+        Remove-Item -LiteralPath $ShortcutPath -Force -ErrorAction SilentlyContinue
+        Write-Host "Atalho antigo removido: $ShortcutPath" -ForegroundColor DarkGray
+    }
 }
 
 # ---- 9. Inicia agora ----
