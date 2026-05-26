@@ -173,7 +173,7 @@ if (-not $NoAutoUpdate) {
         $out = & schtasks.exe /Create /TN $TaskName /XML $xmlPath /F 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Aviso: schtasks /Create falhou (exit $LASTEXITCODE): $out" -ForegroundColor Yellow
-            Write-Host "Auto-update ficara manual ate o proximo install. Updates: \`irm <url> | iex\`" -ForegroundColor Yellow
+            Write-Host 'Auto-update ficara manual. Pra atualizar: re-rodar o one-liner irm | iex.' -ForegroundColor Yellow
         }
     } catch {
         Write-Host "Aviso: falha ao registrar task de auto-update ($($_.Exception.Message))." -ForegroundColor Yellow
