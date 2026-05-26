@@ -78,9 +78,63 @@ if (-not (Test-Path -LiteralPath $env:LOCALAPPDATA)) {
     throw "LOCALAPPDATA nao existe: $env:LOCALAPPDATA"
 }
 
-# ---- 3.5 Early-exit se ja esta na versao desejada ----
-# Crucial pro auto-update task: 99% das execucoes nao vao ter update novo,
-# entao a gente quer um no-op rapido (~5s, sem download de 171MB).
+# ---- 3.5 Re-aplica writes baratos (idempotentes) ANTES do early-exit ----
+# Por que aqui: upgrade de installer antigo (sem auto-update task) pra novo
+# precisa registrar a task mesmo quando a versao do exe ja eh a final.
+# Sem isso, maquinas com exe atual NUNCA pegariam o auto-update.
+# Todos esses writes sao idempotentes (sobrescrevem com Force).
+
+# 3.5.a -- Auto-start (HKCU Run -- sem admin)
+if (-not $NoAutoStart) {
+    New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' `
+        -Name 'VoiceLev' -Value "`"$ExePath`"" -PropertyType String -Force | Out-Null
+}
+
+# 3.5.b -- Auto-update via Task Scheduler (default: ON)
+# Registra tarefa agendada que roda este mesmo install.ps1:
+#   - Daily 4h (com 0-30min de delay aleatorio pra nao bater todas no GH ao mesmo tempo)
+#   - A cada login do usuario (cobre maquinas que ficam off a noite)
+# Roda como o proprio usuario (Interactive logon, RunLevel Limited).
+if (-not $NoAutoUpdate) {
+    $TaskName = 'VoiceLev Auto Update'
+    $Cmd = "irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex"
+    $Action = New-ScheduledTaskAction `
+        -Execute 'powershell.exe' `
+        -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"$Cmd`""
+    $TriggerDaily = New-ScheduledTaskTrigger -Daily -At 4am
+    $TriggerDaily.RandomDelay = 'PT30M'
+    $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+    $Principal = New-ScheduledTaskPrincipal `
+        -UserId "$env:USERDOMAIN\$env:USERNAME" `
+        -LogonType Interactive `
+        -RunLevel Limited
+    $Settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+    try {
+        Register-ScheduledTask -TaskName $TaskName `
+            -Action $Action `
+            -Trigger @($TriggerDaily, $TriggerLogon) `
+            -Principal $Principal `
+            -Settings $Settings `
+            -Force | Out-Null
+    } catch {
+        Write-Host "Aviso: falha ao registrar task de auto-update ($($_.Exception.Message))." -ForegroundColor Yellow
+    }
+}
+
+# 3.5.c -- Cleanup de shortcut orfao quando -WithDesktopShortcut nao foi passado
+if (-not $WithDesktopShortcut) {
+    $LegacyShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'VoiceLev.lnk'
+    if (Test-Path -LiteralPath $LegacyShortcut) {
+        Remove-Item -LiteralPath $LegacyShortcut -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ---- 3.6 Early-exit se ja esta na versao desejada ----
+# Apos os writes baratos. 99% das execucoes do task vao parar aqui em ~5s.
 # Comparacao: ProductVersion do exe local vs $Version. ProductVersion vem
 # como "0.10.2+gitsha"; comparamos so o prefixo SemVer.
 if (Test-Path -LiteralPath $ExePath) {
@@ -89,7 +143,7 @@ if (Test-Path -LiteralPath $ExePath) {
         $localSemver = if ($localFull) { $localFull.Split('+')[0].Trim() } else { '' }
         $targetSemver = $Version.TrimStart('v')
         if ($localSemver -eq $targetSemver) {
-            Write-Host "VoiceLev $Version ja instalado. Nenhuma acao necessaria." -ForegroundColor Green
+            Write-Host "VoiceLev $Version ja instalado (auto-update + auto-start re-confirmados)." -ForegroundColor Green
             exit 0
         }
         Write-Host "Atualizando de v$localSemver para $Version..." -ForegroundColor Cyan
@@ -147,76 +201,9 @@ $Config = @{
 $Config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
 Write-Host "Config: $ConfigPath" -ForegroundColor DarkGray
 
-# ---- 7. Auto-start (HKCU Run -- sem admin) ----
-if (-not $NoAutoStart) {
-    $RunKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-    New-ItemProperty -Path $RunKey -Name 'VoiceLev' -Value "`"$ExePath`"" -PropertyType String -Force | Out-Null
-    Write-Host "Auto-start registrado: HKCU\...\Run\VoiceLev" -ForegroundColor DarkGray
-}
+# Auto-start, Task Scheduler e shortcut cleanup ja foram aplicados em 3.5.
 
-# ---- 8. Desktop shortcut (OPT-IN, default off) ----
-# Lev quer instalacao invisivel pro usuario: nada no Desktop, nada no Start
-# Menu. O app sobe minimizado via HKCU\...\Run e fica so na tray. Pra criar
-# o atalho manualmente, passe -WithDesktopShortcut.
-$DesktopDir = [Environment]::GetFolderPath('Desktop')
-$ShortcutPath = Join-Path $DesktopDir 'VoiceLev.lnk'
-if ($WithDesktopShortcut) {
-    $WScript = New-Object -ComObject WScript.Shell
-    $Shortcut = $WScript.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = $ExePath
-    $Shortcut.WorkingDirectory = $InstallDir
-    $Shortcut.Description = "VoiceLev $Version -- Assistente de voz da Lev"
-    $Shortcut.Save()
-    Write-Host "Shortcut: $ShortcutPath" -ForegroundColor DarkGray
-} else {
-    # Re-instalacao limpa: se existia atalho de uma instalacao anterior
-    # (releases <= v0.10.2 criavam por default), apaga agora pra cumprir a
-    # politica "zero footprint visivel".
-    if (Test-Path -LiteralPath $ShortcutPath) {
-        Remove-Item -LiteralPath $ShortcutPath -Force -ErrorAction SilentlyContinue
-        Write-Host "Atalho antigo removido: $ShortcutPath" -ForegroundColor DarkGray
-    }
-}
-
-# ---- 9. Auto-update via Task Scheduler (default: ON) ----
-# Registra uma tarefa agendada que roda este mesmo install.ps1:
-#   - Daily as 4h (random delay 0-30min pra nao bater todas ao mesmo tempo)
-#   - A cada login do usuario
-# A execucao e silenciosa (Hidden window, PowerShell -NoProfile). Quando nao
-# ha versao nova, early-exit em ~5s. Quando ha, baixa+troca+reinicia, tudo
-# transparente. Roda como o proprio usuario (Interactive logon, nao SYSTEM).
-if (-not $NoAutoUpdate) {
-    $TaskName = 'VoiceLev Auto Update'
-    $Cmd = "irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex"
-    $Action = New-ScheduledTaskAction `
-        -Execute 'powershell.exe' `
-        -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"$Cmd`""
-    $TriggerDaily = New-ScheduledTaskTrigger -Daily -At 4am
-    $TriggerDaily.RandomDelay = 'PT30M'   # ate 30min de delay aleatorio
-    $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-    $Principal = New-ScheduledTaskPrincipal `
-        -UserId "$env:USERDOMAIN\$env:USERNAME" `
-        -LogonType Interactive `
-        -RunLevel Limited
-    $Settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -StartWhenAvailable `
-        -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
-    try {
-        Register-ScheduledTask -TaskName $TaskName `
-            -Action $Action `
-            -Trigger @($TriggerDaily, $TriggerLogon) `
-            -Principal $Principal `
-            -Settings $Settings `
-            -Force | Out-Null
-        Write-Host "Auto-update registrado (Task Scheduler '$TaskName'): daily 4h + at logon" -ForegroundColor DarkGray
-    } catch {
-        Write-Host "Aviso: falha ao registrar task de auto-update ($($_.Exception.Message)). Updates ficarao manuais." -ForegroundColor Yellow
-    }
-}
-
-# ---- 10. Inicia agora ----
+# ---- 7. Inicia agora ----
 if (-not $NoLaunch) {
     Start-Process -FilePath $ExePath -WorkingDirectory $InstallDir
 }
