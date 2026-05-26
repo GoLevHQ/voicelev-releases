@@ -168,6 +168,19 @@ if (Test-Path -LiteralPath $ExePath) {
         $localSemver = if ($localFull) { $localFull.Split('+')[0].Trim() } else { '' }
         $targetSemver = $Version.TrimStart('v')
         if ($localSemver -eq $targetSemver) {
+            # Importante: se o app ja estava rodando, ele tem a config VELHA em
+            # memoria (cached no boot anterior). Pra ele pegar a config que a
+            # gente acabou de reescrever em 3.5.d, precisa restartar.
+            # Isso eh barato (~3s) e cobre o caso do bug de config antiga.
+            # Sem isso, maquinas que rodaram a v0.10.2 nested ficariam presas
+            # no 401 ate o usuario fazer logout/login do Windows.
+            $running = @(Get-Process -Name 'VoiceLev' -ErrorAction SilentlyContinue)
+            if ($running.Count -gt 0) {
+                Write-Host "App ja rodando -- restartando pra recarregar config atualizada..." -ForegroundColor Yellow
+                $running | Stop-Process -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Milliseconds 800
+                Start-Process -FilePath $ExePath -WorkingDirectory $InstallDir
+            }
             Write-Host "VoiceLev $Version ja instalado (auto-update + auto-start re-confirmados)." -ForegroundColor Green
             exit 0
         }
