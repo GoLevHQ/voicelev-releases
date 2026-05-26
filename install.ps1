@@ -96,32 +96,91 @@ if (-not $NoAutoStart) {
 #   - A cada login do usuario (cobre maquinas que ficam off a noite)
 # Roda como o proprio usuario (Interactive logon, RunLevel Limited).
 if (-not $NoAutoUpdate) {
+    # IMPORTANTE: Register-ScheduledTask (PS cmdlet) registra tasks na RAIZ do
+    # Task Scheduler Library, o que requer admin no Windows 10/11 com UAC
+    # default. Usuarios sem elevacao recebem "Access is denied".
+    #
+    # Solucao: usar schtasks.exe diretamente com XML que declara o Principal
+    # como InteractiveToken + LeastPrivilege (usuario atual sem admin). Isso
+    # cria task per-user que NAO requer elevacao. Funciona em ambos os casos:
+    # admin OR sem admin. Mais portavel que o cmdlet PS.
     $TaskName = 'VoiceLev Auto Update'
-    $Cmd = "irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex"
-    $Action = New-ScheduledTaskAction `
-        -Execute 'powershell.exe' `
-        -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"$Cmd`""
-    $TriggerDaily = New-ScheduledTaskTrigger -Daily -At 4am
-    $TriggerDaily.RandomDelay = 'PT30M'
-    # -AtLogOn sem -User dispara em qualquer login do user em sessao interativa
-    # (PS 5.1 em contas locais nao resolve DOMAIN\user direito; default funciona).
-    $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn
-    $Settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -StartWhenAvailable `
-        -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+    $Cmd = 'irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex'
+    # Escape pra XML: a aspa dupla do irm vai como &quot;
+    $CmdEscaped = $Cmd.Replace('"', '&quot;')
+
+    # StartBoundary precisa ser timestamp local em formato ISO (sem timezone).
+    # Usamos amanha 4h pra primeira execucao; depois cai no ritmo diario.
+    $startBoundary = (Get-Date).Date.AddDays(1).AddHours(4).ToString('yyyy-MM-ddTHH:mm:ss')
+
+    $TaskXml = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>VoiceLev auto-update: roda install.ps1 daily 4h + at logon. Idempotente.</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>$startBoundary</StartBoundary>
+      <RandomDelay>PT30M</RandomDelay>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <DontStopIfGoingOnBatteries>true</DontStopIfGoingOnBatteries>
+    <Enabled>true</Enabled>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <Hidden>false</Hidden>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <Priority>7</Priority>
+    <RestartOnFailure>
+      <Interval>PT1H</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "$CmdEscaped"</Arguments>
+    </Exec>
+  </Actions>
+</Task>
+"@
+    # schtasks /Create /XML precisa do arquivo em UTF-16 LE (com BOM). Usamos
+    # Unicode encoding do PS pra garantir.
+    $xmlPath = Join-Path $env:TEMP "voicelev-task-$([Guid]::NewGuid().ToString('N')).xml"
     try {
-        # Sem -Principal: o task herda do usuario que esta registrando agora
-        # (o mesmo usuario que vai depois disparar -- entao corre como ele
-        # mesmo em sessao interativa, com acesso ao HKCU dele).
-        Register-ScheduledTask -TaskName $TaskName `
-            -Action $Action `
-            -Trigger @($TriggerDaily, $TriggerLogon) `
-            -Settings $Settings `
-            -Force | Out-Null
+        [System.IO.File]::WriteAllText($xmlPath, $TaskXml, [System.Text.Encoding]::Unicode)
+        # /F = sobrescreve se ja existe. /XML = registra do arquivo.
+        $out = & schtasks.exe /Create /TN $TaskName /XML $xmlPath /F 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Aviso: schtasks /Create falhou (exit $LASTEXITCODE): $out" -ForegroundColor Yellow
+            Write-Host "Auto-update ficara manual ate o proximo install. Updates: \`irm <url> | iex\`" -ForegroundColor Yellow
+        }
     } catch {
         Write-Host "Aviso: falha ao registrar task de auto-update ($($_.Exception.Message))." -ForegroundColor Yellow
+    } finally {
+        if (Test-Path -LiteralPath $xmlPath) {
+            Remove-Item -LiteralPath $xmlPath -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
