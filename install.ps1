@@ -103,21 +103,21 @@ if (-not $NoAutoUpdate) {
         -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"$Cmd`""
     $TriggerDaily = New-ScheduledTaskTrigger -Daily -At 4am
     $TriggerDaily.RandomDelay = 'PT30M'
-    $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-    $Principal = New-ScheduledTaskPrincipal `
-        -UserId "$env:USERDOMAIN\$env:USERNAME" `
-        -LogonType Interactive `
-        -RunLevel Limited
+    # -AtLogOn sem -User dispara em qualquer login do user em sessao interativa
+    # (PS 5.1 em contas locais nao resolve DOMAIN\user direito; default funciona).
+    $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn
     $Settings = New-ScheduledTaskSettingsSet `
         -AllowStartIfOnBatteries `
         -DontStopIfGoingOnBatteries `
         -StartWhenAvailable `
         -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
     try {
+        # Sem -Principal: o task herda do usuario que esta registrando agora
+        # (o mesmo usuario que vai depois disparar -- entao corre como ele
+        # mesmo em sessao interativa, com acesso ao HKCU dele).
         Register-ScheduledTask -TaskName $TaskName `
             -Action $Action `
             -Trigger @($TriggerDaily, $TriggerLogon) `
-            -Principal $Principal `
             -Settings $Settings `
             -Force | Out-Null
     } catch {
