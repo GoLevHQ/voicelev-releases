@@ -133,6 +133,31 @@ if (-not $WithDesktopShortcut) {
     }
 }
 
+# 3.5.d -- Config (URL + token compartilhado fase-1a)
+# IMPORTANTE: Microsoft.Extensions.Configuration no C# busca SECTIONS
+# top-level (configuration.GetSection("VoiceLevApi")). NAO eh nested em
+# "voicelev.api". Manter "VoiceLevApi" e "VoiceLev" no MESMO NIVEL.
+#
+# Bug historico (releases <= v0.10.2): config escrita como
+# voicelev.api.AuthToken nao era lida pelo C# -> AuthToken=string.Empty ->
+# request sem Authorization header -> HTTP 401 nas maquinas com fresh install.
+#
+# Token compartilhado da fase 1a. Bloqueia abuso casual de quem topa com o
+# endpoint publico, nao eh segredo forte. Per-user token vem na fase 1d.
+New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
+$Config = [ordered]@{
+    VoiceLevApi = [ordered]@{
+        BaseUrl   = 'https://www.golev.com.br/api/voicelev'
+        AuthToken = 'voicelev_phase1a_6d5231e535dbd85954edd747002c2379'
+    }
+    VoiceLev = [ordered]@{
+        ProfileSlug      = 'mecanico'
+        Hotkey           = 'Shift+Alt+D'
+        AssistantHotkey  = 'Shift+Alt+A'
+    }
+}
+$Config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
+
 # ---- 3.6 Early-exit se ja esta na versao desejada ----
 # Apos os writes baratos. 99% das execucoes do task vao parar aqui em ~5s.
 # Comparacao: ProductVersion do exe local vs $Version. ProductVersion vem
@@ -184,30 +209,7 @@ Move-Item -LiteralPath $tmp -Destination $ExePath -Force
 # Remove Mark-of-the-Web pra SmartScreen nao bloquear o launch.
 Unblock-File -LiteralPath $ExePath -ErrorAction SilentlyContinue
 
-# ---- 6. Config (URL + token compartilhado fase-1a) ----
-# IMPORTANTE: Microsoft.Extensions.Configuration no C# busca SECTIONS
-# top-level (configuration.GetSection("VoiceLevApi")). NAO eh nested em
-# "voicelev.api". Manter "VoiceLevApi" e "VoiceLev" no MESMO NIVEL.
-#
-# Bug historico (v0.10.2 e antes do v0.10.3): config escrita como
-# voicelev.api.AuthToken nao era lida pelo C# -> AuthToken=string.Empty ->
-# request sem Authorization header -> HTTP 401 nas maquinas com fresh install.
-#
-# Token compartilhado da fase 1a. Bloqueia abuso casual de quem topa com o
-# endpoint publico, nao eh segredo forte. Per-user token vem na fase 1d.
-$Config = [ordered]@{
-    VoiceLevApi = [ordered]@{
-        BaseUrl   = 'https://www.golev.com.br/api/voicelev'
-        AuthToken = 'voicelev_phase1a_6d5231e535dbd85954edd747002c2379'
-    }
-    VoiceLev = [ordered]@{
-        ProfileSlug      = 'mecanico'
-        Hotkey           = 'Shift+Alt+D'
-        AssistantHotkey  = 'Shift+Alt+A'
-    }
-}
-$Config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
-Write-Host "Config: $ConfigPath" -ForegroundColor DarkGray
+# Config foi escrita em 3.5.d antes do early-exit (writes idempotentes).
 
 # Auto-start, Task Scheduler e shortcut cleanup ja foram aplicados em 3.5.
 
