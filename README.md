@@ -14,17 +14,16 @@ Abra o PowerShell (não precisa admin) e cole:
 irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex
 ```
 
-O que isso faz:
+O que isso faz (**instalação invisível** — nada no Desktop, nada no Start Menu, sem prompts):
 
 1. Detecta a última release neste repo
 2. Baixa `VoiceLev.exe` (~171 MB, self-contained — inclui o .NET 10 runtime)
 3. Instala em `%LOCALAPPDATA%\Programs\VoiceLev\`
 4. Cria config em `%APPDATA%\VoiceLev\config.json` (URL do backend + token compartilhado fase-1a)
 5. Registra `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\VoiceLev` — app inicia minimizado a cada login do Windows
-6. Cria atalho no Desktop
-7. Inicia agora
+6. Inicia agora
 
-Tempo total: ~30s (depende da internet).
+Tempo total: ~30s (depende da internet). O usuário não vê nenhuma alteração visível no sistema — o app fica só na tray, ativado por hotkeys globais.
 
 ### Hotkeys globais (depois de instalar)
 
@@ -43,11 +42,24 @@ Pra usar flags, baixe o script primeiro e rode local:
 
 ```powershell
 irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 -OutFile install.ps1
-.\install.ps1 -NoAutoStart            # não registrar no HKCU\...\Run
-.\install.ps1 -NoDesktopShortcut      # não criar atalho no Desktop
+.\install.ps1 -NoAutoStart            # não registrar no HKCU\...\Run (default: registra)
+.\install.ps1 -WithDesktopShortcut    # criar atalho no Desktop (default: NÃO cria)
 .\install.ps1 -NoLaunch               # baixar e instalar mas não iniciar agora
 .\install.ps1 -Version v0.10.2        # versão específica em vez do latest
 ```
+
+### Deploy massivo via SSH
+
+Pra rolar instalações em N máquinas sem precisar tocar em cada uma (admin do TI):
+
+```bash
+# Da sua maquina (Mac/Linux) com SSH configurado para os hosts:
+for host in maquina1 maquina2 maquina3; do
+  ssh "$host" "powershell -NoProfile -Command \"irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex\""
+done
+```
+
+Cada execução é idempotente: re-rodar atualiza pra o latest sem efeitos colaterais.
 
 ---
 

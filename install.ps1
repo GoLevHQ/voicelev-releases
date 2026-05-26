@@ -12,27 +12,27 @@
 #   $env:VOICELEV_VERSION = "v0.10.2"
 #   irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex
 #
-# O que faz:
+# O que faz (instalacao INVISIVEL por default — nada no Desktop / Start Menu):
 #   1. Baixa VoiceLev.exe (self-contained, ~171 MB) do GitHub Releases
 #      pra %LOCALAPPDATA%\Programs\VoiceLev\VoiceLev.exe
 #   2. Cria config em %APPDATA%\VoiceLev\config.json com URL do backend +
 #      token compartilhado fase-1a
 #   3. Registra entrada em HKCU\Software\Microsoft\Windows\CurrentVersion\Run
 #      pro app iniciar minimizado a cada login (tray icon + hotkeys globais)
-#   4. Cria atalho no Desktop pra abertura manual
-#   5. Inicia o app imediatamente
+#   4. Inicia o app imediatamente
 #
-# O app nao abre janela ao iniciar -- so registra hotkeys e fica na tray:
+# O app nao abre janela ao iniciar -- so registra hotkeys globais:
 #   * Shift+Alt+D -- ditar (transcreve audio do mic e cola onde o cursor esta)
 #   * Shift+Alt+A -- abrir o chat do assistente
 #
+# Atalho no Desktop nao eh criado por default (-WithDesktopShortcut pra opt-in).
 # Pra desinstalar: ver README do repo voicelev-releases.
 
 [CmdletBinding()]
 param(
     [string]$Version,
     [switch]$NoAutoStart,
-    [switch]$NoDesktopShortcut,
+    [switch]$WithDesktopShortcut,   # OPT-IN: por default nao cria atalho (instalacao invisivel)
     [switch]$NoLaunch
 )
 
@@ -125,8 +125,11 @@ if (-not $NoAutoStart) {
     Write-Host "Auto-start registrado: HKCU\...\Run\VoiceLev" -ForegroundColor DarkGray
 }
 
-# ---- 8. Desktop shortcut ----
-if (-not $NoDesktopShortcut) {
+# ---- 8. Desktop shortcut (OPT-IN, default off) ----
+# Lev quer instalacao invisivel pro usuario: nada no Desktop, nada no Start
+# Menu. O app sobe minimizado via HKCU\...\Run e fica so na tray. Pra criar
+# o atalho manualmente, passe -WithDesktopShortcut.
+if ($WithDesktopShortcut) {
     $DesktopDir = [Environment]::GetFolderPath('Desktop')
     $ShortcutPath = Join-Path $DesktopDir 'VoiceLev.lnk'
     $WScript = New-Object -ComObject WScript.Shell
