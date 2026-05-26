@@ -113,17 +113,17 @@ if (-not $NoAutoUpdate) {
     # Usamos amanha 4h pra primeira execucao; depois cai no ritmo diario.
     $startBoundary = (Get-Date).Date.AddDays(1).AddHours(4).ToString('yyyy-MM-ddTHH:mm:ss')
 
+    # XML minimal aceito pelo schtasks.exe /Create /XML em qualquer versao do
+    # Windows 10/11. Ordem dos elementos dentro de Settings/CalendarTrigger eh
+    # IMPORTANTE -- schema XSD do Task Scheduler eh strict.
     $TaskXml = @"
 <?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>VoiceLev auto-update: roda install.ps1 daily 4h + at logon. Idempotente.</Description>
-  </RegistrationInfo>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <Triggers>
     <CalendarTrigger>
       <StartBoundary>$startBoundary</StartBoundary>
-      <RandomDelay>PT30M</RandomDelay>
       <Enabled>true</Enabled>
+      <RandomDelay>PT30M</RandomDelay>
       <ScheduleByDay>
         <DaysInterval>1</DaysInterval>
       </ScheduleByDay>
@@ -139,22 +139,18 @@ if (-not $NoAutoUpdate) {
     </Principal>
   </Principals>
   <Settings>
-    <AllowHardTerminate>true</AllowHardTerminate>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <DontStopIfGoingOnBatteries>true</DontStopIfGoingOnBatteries>
-    <Enabled>true</Enabled>
-    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
-    <Hidden>false</Hidden>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <Priority>7</Priority>
-    <RestartOnFailure>
-      <Interval>PT1H</Interval>
-      <Count>3</Count>
-    </RestartOnFailure>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <StartWhenAvailable>true</StartWhenAvailable>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit>
+    <Priority>7</Priority>
   </Settings>
   <Actions Context="Author">
     <Exec>
