@@ -185,14 +185,22 @@ Move-Item -LiteralPath $tmp -Destination $ExePath -Force
 Unblock-File -LiteralPath $ExePath -ErrorAction SilentlyContinue
 
 # ---- 6. Config (URL + token compartilhado fase-1a) ----
+# IMPORTANTE: Microsoft.Extensions.Configuration no C# busca SECTIONS
+# top-level (configuration.GetSection("VoiceLevApi")). NAO eh nested em
+# "voicelev.api". Manter "VoiceLevApi" e "VoiceLev" no MESMO NIVEL.
+#
+# Bug historico (v0.10.2 e antes do v0.10.3): config escrita como
+# voicelev.api.AuthToken nao era lida pelo C# -> AuthToken=string.Empty ->
+# request sem Authorization header -> HTTP 401 nas maquinas com fresh install.
+#
 # Token compartilhado da fase 1a. Bloqueia abuso casual de quem topa com o
 # endpoint publico, nao eh segredo forte. Per-user token vem na fase 1d.
-$Config = @{
-    voicelev = @{
-        api = @{
-            BaseUrl   = 'https://www.golev.com.br/api/voicelev'
-            AuthToken = 'voicelev_phase1a_6d5231e535dbd85954edd747002c2379'
-        }
+$Config = [ordered]@{
+    VoiceLevApi = [ordered]@{
+        BaseUrl   = 'https://www.golev.com.br/api/voicelev'
+        AuthToken = 'voicelev_phase1a_6d5231e535dbd85954edd747002c2379'
+    }
+    VoiceLev = [ordered]@{
         ProfileSlug      = 'mecanico'
         Hotkey           = 'Shift+Alt+D'
         AssistantHotkey  = 'Shift+Alt+A'
