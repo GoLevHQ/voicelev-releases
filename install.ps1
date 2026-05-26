@@ -12,26 +12,34 @@
 #   $env:VOICELEV_VERSION = "v0.10.2"
 #   irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex
 #
-# O que faz (instalacao INVISIVEL por default — nada no Desktop / Start Menu):
+# O que faz (instalacao INVISIVEL por default -- nada no Desktop / Start Menu):
 #   1. Baixa VoiceLev.exe (self-contained, ~171 MB) do GitHub Releases
 #      pra %LOCALAPPDATA%\Programs\VoiceLev\VoiceLev.exe
 #   2. Cria config em %APPDATA%\VoiceLev\config.json com URL do backend +
 #      token compartilhado fase-1a
 #   3. Registra entrada em HKCU\Software\Microsoft\Windows\CurrentVersion\Run
 #      pro app iniciar minimizado a cada login (tray icon + hotkeys globais)
-#   4. Inicia o app imediatamente
+#   4. Registra Tarefa Agendada do Windows que re-roda este script daily as 4h
+#      + a cada login -- propaga novas releases AUTOMATICAMENTE em ate 24h
+#   5. Inicia o app imediatamente
+#
+# Idempotente: re-rodar este script eh seguro. Se a versao local ja for a
+# desejada, early-exit em ~5s (sem download). Se nao, mata o exe atual,
+# baixa+troca, reinicia.
 #
 # O app nao abre janela ao iniciar -- so registra hotkeys globais:
 #   * Shift+Alt+D -- ditar (transcreve audio do mic e cola onde o cursor esta)
 #   * Shift+Alt+A -- abrir o chat do assistente
 #
 # Atalho no Desktop nao eh criado por default (-WithDesktopShortcut pra opt-in).
+# Auto-update pode ser desabilitado com -NoAutoUpdate (raramente desejado).
 # Pra desinstalar: ver README do repo voicelev-releases.
 
 [CmdletBinding()]
 param(
     [string]$Version,
     [switch]$NoAutoStart,
+    [switch]$NoAutoUpdate,           # NOVO: pula registro do task de auto-update
     [switch]$WithDesktopShortcut,   # OPT-IN: por default nao cria atalho (instalacao invisivel)
     [switch]$NoLaunch
 )
@@ -69,6 +77,27 @@ $DownloadUrl = "https://github.com/GoLevHQ/voicelev-releases/releases/download/$
 if (-not (Test-Path -LiteralPath $env:LOCALAPPDATA)) {
     throw "LOCALAPPDATA nao existe: $env:LOCALAPPDATA"
 }
+
+# ---- 3.5 Early-exit se ja esta na versao desejada ----
+# Crucial pro auto-update task: 99% das execucoes nao vao ter update novo,
+# entao a gente quer um no-op rapido (~5s, sem download de 171MB).
+# Comparacao: ProductVersion do exe local vs $Version. ProductVersion vem
+# como "0.10.2+gitsha"; comparamos so o prefixo SemVer.
+if (Test-Path -LiteralPath $ExePath) {
+    try {
+        $localFull = (Get-Item -LiteralPath $ExePath).VersionInfo.ProductVersion
+        $localSemver = if ($localFull) { $localFull.Split('+')[0].Trim() } else { '' }
+        $targetSemver = $Version.TrimStart('v')
+        if ($localSemver -eq $targetSemver) {
+            Write-Host "VoiceLev $Version ja instalado. Nenhuma acao necessaria." -ForegroundColor Green
+            exit 0
+        }
+        Write-Host "Atualizando de v$localSemver para $Version..." -ForegroundColor Cyan
+    } catch {
+        Write-Host "Nao foi possivel ler a versao local; prosseguindo com install full." -ForegroundColor Yellow
+    }
+}
+
 # Mata instancia anterior pra liberar o arquivo pra sobrescrever.
 Get-Process -Name 'VoiceLev' -ErrorAction SilentlyContinue | ForEach-Object {
     Write-Host "Encerrando instancia anterior do VoiceLev (PID $($_.Id))..." -ForegroundColor Yellow
@@ -149,7 +178,45 @@ if ($WithDesktopShortcut) {
     }
 }
 
-# ---- 9. Inicia agora ----
+# ---- 9. Auto-update via Task Scheduler (default: ON) ----
+# Registra uma tarefa agendada que roda este mesmo install.ps1:
+#   - Daily as 4h (random delay 0-30min pra nao bater todas ao mesmo tempo)
+#   - A cada login do usuario
+# A execucao e silenciosa (Hidden window, PowerShell -NoProfile). Quando nao
+# ha versao nova, early-exit em ~5s. Quando ha, baixa+troca+reinicia, tudo
+# transparente. Roda como o proprio usuario (Interactive logon, nao SYSTEM).
+if (-not $NoAutoUpdate) {
+    $TaskName = 'VoiceLev Auto Update'
+    $Cmd = "irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex"
+    $Action = New-ScheduledTaskAction `
+        -Execute 'powershell.exe' `
+        -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"$Cmd`""
+    $TriggerDaily = New-ScheduledTaskTrigger -Daily -At 4am
+    $TriggerDaily.RandomDelay = 'PT30M'   # ate 30min de delay aleatorio
+    $TriggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+    $Principal = New-ScheduledTaskPrincipal `
+        -UserId "$env:USERDOMAIN\$env:USERNAME" `
+        -LogonType Interactive `
+        -RunLevel Limited
+    $Settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+    try {
+        Register-ScheduledTask -TaskName $TaskName `
+            -Action $Action `
+            -Trigger @($TriggerDaily, $TriggerLogon) `
+            -Principal $Principal `
+            -Settings $Settings `
+            -Force | Out-Null
+        Write-Host "Auto-update registrado (Task Scheduler '$TaskName'): daily 4h + at logon" -ForegroundColor DarkGray
+    } catch {
+        Write-Host "Aviso: falha ao registrar task de auto-update ($($_.Exception.Message)). Updates ficarao manuais." -ForegroundColor Yellow
+    }
+}
+
+# ---- 10. Inicia agora ----
 if (-not $NoLaunch) {
     Start-Process -FilePath $ExePath -WorkingDirectory $InstallDir
 }

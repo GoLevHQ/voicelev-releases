@@ -21,9 +21,27 @@ O que isso faz (**instalação invisível** — nada no Desktop, nada no Start M
 3. Instala em `%LOCALAPPDATA%\Programs\VoiceLev\`
 4. Cria config em `%APPDATA%\VoiceLev\config.json` (URL do backend + token compartilhado fase-1a)
 5. Registra `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\VoiceLev` — app inicia minimizado a cada login do Windows
-6. Inicia agora
+6. Registra **Tarefa Agendada do Windows** (`VoiceLev Auto Update`) — daily às 4h + a cada login. Toda release nova propaga automaticamente em até 24h, sem ação manual
+7. Inicia agora
 
-Tempo total: ~30s (depende da internet). O usuário não vê nenhuma alteração visível no sistema — o app fica só na tray, ativado por hotkeys globais.
+Tempo total: ~30s na primeira instalação. Re-execuções (e cada disparo do auto-update) levam ~5s quando já está na versão certa (early-exit). O usuário não vê nenhuma alteração visível no sistema — o app fica só na tray, ativado por hotkeys globais.
+
+## Como funciona o auto-update
+
+A partir da v0.10.3+:
+
+1. Você publica uma release nova (ex: `v0.10.5`) com o `VoiceLev.exe` como asset
+2. Em até 24h (ou no próximo login do usuário) cada máquina dispara a tarefa agendada
+3. A tarefa baixa este `install.ps1`, descobre que a release atual no GitHub é `v0.10.5`, compara com a versão local
+4. Se igual → no-op em ~5s, máquina segue como está
+5. Se diferente → mata o `VoiceLev.exe` atual, baixa o novo, troca, reinicia (transparente; usuário não vê janela)
+
+Mensagens locais (`%APPDATA%\VoiceLev\chat-last.json`) sobrevivem ao restart porque vivem fora do install dir.
+
+Pra forçar update imediato numa máquina específica via SSH:
+```bash
+ssh maquina-x 'powershell -NoProfile -Command "Start-ScheduledTask -TaskName \"VoiceLev Auto Update\""'
+```
 
 ### Hotkeys globais (depois de instalar)
 
@@ -43,6 +61,7 @@ Pra usar flags, baixe o script primeiro e rode local:
 ```powershell
 irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 -OutFile install.ps1
 .\install.ps1 -NoAutoStart            # não registrar no HKCU\...\Run (default: registra)
+.\install.ps1 -NoAutoUpdate           # não criar Tarefa Agendada de auto-update (default: cria)
 .\install.ps1 -WithDesktopShortcut    # criar atalho no Desktop (default: NÃO cria)
 .\install.ps1 -NoLaunch               # baixar e instalar mas não iniciar agora
 .\install.ps1 -Version v0.10.2        # versão específica em vez do latest
@@ -78,7 +97,10 @@ Remove-Item -Recurse -Force "$env:APPDATA\VoiceLev"
 # Remove auto-start
 Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'VoiceLev' -ErrorAction SilentlyContinue
 
-# Remove desktop shortcut
+# Remove Tarefa Agendada de auto-update
+Unregister-ScheduledTask -TaskName 'VoiceLev Auto Update' -Confirm:$false -ErrorAction SilentlyContinue
+
+# Remove desktop shortcut (se existir de versão antiga)
 Remove-Item -Force "$env:USERPROFILE\Desktop\VoiceLev.lnk" -ErrorAction SilentlyContinue
 ```
 
