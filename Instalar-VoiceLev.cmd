@@ -23,7 +23,7 @@ echo.
 echo  ------------------------------------------------------------
 echo.
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& { try { irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex } catch { Write-Host ''; Write-Host ('ERRO: ' + $_.Exception.Message) -ForegroundColor Red; Write-Host ''; Write-Host 'Tente abrir o PowerShell e rodar manualmente:' -ForegroundColor Yellow; Write-Host '  irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 ^| iex' -ForegroundColor Cyan; exit 1 } }"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& { try { $env:VOICELEV_INSTALL_METHOD = 'cmd'; $env:VOICELEV_TRIGGERED_BY = 'cmd_wrapper'; irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex } catch { Write-Host ''; Write-Host ('ERRO: ' + $_.Exception.Message) -ForegroundColor Red; Write-Host ''; Write-Host 'Tente abrir o PowerShell e rodar manualmente:' -ForegroundColor Yellow; Write-Host '  irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 ^| iex' -ForegroundColor Cyan; exit 1 } }"
 
 set "EXITCODE=%ERRORLEVEL%"
 
