@@ -315,6 +315,20 @@ $Config = [ordered]@{
         # que reativar (e adicionar de volta o item no tray de App.axaml).
         AssistantEnabled = $false
     }
+    Telemetry = [ordered]@{
+        # v0.11.0: VoiceLev.exe envia heartbeat + dictation events pro
+        # backend (/api/voicelev/telemetry/*). Flip pra $false pra desligar
+        # silenciosamente sem mexer no resto do config.
+        Enabled                  = $true
+        # Intervalo do heartbeat (timer Avalonia dispara periodico). Pode
+        # ser '01:00:00' (1h), '06:00:00' (6h), etc. Minimo: 5min (clamp).
+        HeartbeatInterval        = '06:00:00'
+        # Quando true, transcription_text do ditado e' enviado pro Supabase
+        # em voicelev_dictation_events. Default false (LGPD-friendly: so'
+        # metadata vai junto — chars/duration/success).
+        IncludeTranscriptionText = $false
+        RequestTimeout           = '00:00:08'
+    }
 }
 $Config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
 
