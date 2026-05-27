@@ -8,7 +8,22 @@ Os binários **NÃO ficam neste repo** (são grandes, ~171 MB). Estão como *ass
 
 ## Instalação rápida (Windows 10/11)
 
-Abra o PowerShell (não precisa admin) e cole:
+Dois jeitos — escolha o que prefere. Ambos funcionam **sem privilégios de admin**.
+
+### Opção 1: dois cliques (mais fácil)
+
+Baixe o instalador e dê duplo-clique:
+
+➡️ [**Instalar-VoiceLev.cmd**](https://github.com/GoLevHQ/voicelev-releases/releases/latest/download/Instalar-VoiceLev.cmd)
+
+> Na primeira vez o Windows SmartScreen pode pedir confirmação porque o arquivo veio da internet:
+> "**Mais informações**" → "**Executar mesmo assim**".
+
+A janela mostra o progresso e fecha quando termina. Pode minimizar e fazer outras coisas — não precisa fazer nada além disso.
+
+### Opção 2: PowerShell (mais técnico)
+
+Abra o PowerShell (Tecla Windows → "PowerShell" → Enter, **sem precisar de "Executar como administrador"**) e cole:
 
 ```powershell
 irm https://raw.githubusercontent.com/GoLevHQ/voicelev-releases/main/install.ps1 | iex
