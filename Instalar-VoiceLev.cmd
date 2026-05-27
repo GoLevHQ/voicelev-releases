@@ -35,9 +35,13 @@ if "%EXITCODE%"=="0" (
     color 0A
     echo    SUCESSO -- VoiceLev esta rodando em segundo plano.
     echo.
-    echo    Atalho global:
+    echo    Como usar:
     echo.
-    echo      Shift+Alt+D  -^>  Ditar transcricao em qualquer campo
+    echo      Ctrl Ctrl  -^>  Apertar Ctrl 2x rapido pra COMECAR a gravar
+    echo      Ctrl       -^>  Apertar Ctrl 1x pra PARAR e colar o texto
+    echo      Esc        -^>  Cancelar gravacao (descarta audio)
+    echo.
+    echo    Atalho antigo Shift+Alt+D continua funcionando.
     echo.
     echo    O app sobe sozinho no proximo login do Windows.
     echo.

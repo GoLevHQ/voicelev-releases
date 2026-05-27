@@ -58,12 +58,17 @@ Pra forçar update imediato numa máquina específica via SSH:
 ssh maquina-x 'powershell -NoProfile -Command "Start-ScheduledTask -TaskName \"VoiceLev Auto Update\""'
 ```
 
-### Hotkey global (depois de instalar)
+### Como usar (v0.12.0+)
 
 | Atalho | Ação |
 |---|---|
-| `Shift+Alt+D` | Ditar — grava do mic, transcreve, cola onde o cursor está |
+| **`Ctrl` `Ctrl`** (2× rápido) | **Começa a gravar** — apertar Ctrl 2 vezes em até 400ms |
+| **`Ctrl`** (1×) | **Para e cola** — finaliza gravação, processa, cola onde o cursor está |
+| `Esc` | Cancela gravação em curso (descarta áudio, não cola) |
+| `Shift+Alt+D` | Atalho **legado** ainda ativo — toggle clássico (start/stop) |
 
+> O detector ignora `Ctrl+C`, `Ctrl+V`, `Ctrl+T` etc. — só **Ctrl puro** (sem outra tecla apertada junto) conta como tap.
+>
 > **Modo Assistente desabilitado em v0.10.4** — chat conversacional com a KB Global (`Shift+Alt+A`) foi temporariamente removido pra focar feedback no ditado puro. Volta quando estiver mais maduro.
 
 Tray icon no canto inferior direito permite abrir Settings ou sair.

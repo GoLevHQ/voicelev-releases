@@ -28,7 +28,10 @@
 # baixa+troca, reinicia.
 #
 # O app nao abre janela ao iniciar -- so registra hotkeys globais:
-#   * Shift+Alt+D -- ditar (transcreve audio do mic e cola onde o cursor esta)
+#   * Ctrl Ctrl (2x rapido, ate' 400ms) -- comeca a gravar
+#   * Ctrl 1x       -- para a gravacao, processa e cola
+#   * Esc           -- cancela gravacao em curso (descarta audio, nao cola)
+#   * Shift+Alt+D   -- atalho LEGADO ainda ativo em paralelo (toggle)
 #
 # Modo Assistente (Shift+Alt+A) foi desabilitado em v0.10.4 pra focar feedback
 # no ditado puro. Pra reativar, flip AssistantEnabled=true no config.json.
@@ -329,6 +332,17 @@ $Config = [ordered]@{
         IncludeTranscriptionText = $false
         RequestTimeout           = '00:00:08'
     }
+    HotkeyDoubleTap = [ordered]@{
+        # v0.12.0: hotkey principal e' "Ctrl Ctrl pra comecar, Ctrl pra parar".
+        # Detector via low-level keyboard hook (so' single Ctrl tap puro
+        # conta — Ctrl+C/V/T/etc nao disparam ditado por engano). O atalho
+        # antigo Shift+Alt+D continua funcionando em paralelo nesta release.
+        Enabled           = $true
+        # Janela em ms entre o 1º e o 2º Ctrl tap. 400ms e' generoso (Discord
+        # usa 250-300ms). Aumentar deixa mais facil; muito alto pode causar
+        # false-positives.
+        DoubleTapWindowMs = 400
+    }
 }
 $Config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
 
@@ -485,8 +499,12 @@ if (-not $NoLaunch) {
 Write-Host ""
 Write-Host "OK -- VoiceLev $Version instalado." -ForegroundColor Green
 Write-Host ""
-Write-Host "Hotkey global:" -ForegroundColor Cyan
-Write-Host "  Shift+Alt+D  -- Ditado (transcreve audio do mic e cola onde o cursor esta)" -ForegroundColor White
+Write-Host "Hotkey global (NOVO em v0.12.0):" -ForegroundColor Cyan
+Write-Host "  Ctrl Ctrl    -- Apertar Ctrl 2x rapido pra COMECAR a gravar" -ForegroundColor White
+Write-Host "  Ctrl         -- Apertar Ctrl 1x pra PARAR e colar onde o cursor esta" -ForegroundColor White
+Write-Host "  Esc          -- Cancelar gravacao em curso (descarta audio)" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "Atalho legado Shift+Alt+D continua funcionando como toggle." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Tray icon no canto inferior direito permite abrir Settings ou sair." -ForegroundColor White
 Write-Host ""
