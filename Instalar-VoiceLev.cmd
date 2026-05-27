@@ -35,10 +35,9 @@ if "%EXITCODE%"=="0" (
     color 0A
     echo    SUCESSO -- VoiceLev esta rodando em segundo plano.
     echo.
-    echo    Atalhos globais:
+    echo    Atalho global:
     echo.
     echo      Shift+Alt+D  -^>  Ditar transcricao em qualquer campo
-    echo      Shift+Alt+A  -^>  Abrir chat do assistente
     echo.
     echo    O app sobe sozinho no proximo login do Windows.
     echo.

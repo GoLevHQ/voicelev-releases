@@ -58,14 +58,15 @@ Pra forçar update imediato numa máquina específica via SSH:
 ssh maquina-x 'powershell -NoProfile -Command "Start-ScheduledTask -TaskName \"VoiceLev Auto Update\""'
 ```
 
-### Hotkeys globais (depois de instalar)
+### Hotkey global (depois de instalar)
 
 | Atalho | Ação |
 |---|---|
 | `Shift+Alt+D` | Ditar — grava do mic, transcreve, cola onde o cursor está |
-| `Shift+Alt+A` | Abrir chat do assistente (RAG na KB Global + tools OpenClaw) |
 
-Tray icon no canto inferior direito permite abrir Settings, Assistente, ou sair.
+> **Modo Assistente desabilitado em v0.10.4** — chat conversacional com a KB Global (`Shift+Alt+A`) foi temporariamente removido pra focar feedback no ditado puro. Volta quando estiver mais maduro.
+
+Tray icon no canto inferior direito permite abrir Settings ou sair.
 
 ---
 

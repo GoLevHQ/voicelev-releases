@@ -29,7 +29,9 @@
 #
 # O app nao abre janela ao iniciar -- so registra hotkeys globais:
 #   * Shift+Alt+D -- ditar (transcreve audio do mic e cola onde o cursor esta)
-#   * Shift+Alt+A -- abrir o chat do assistente
+#
+# Modo Assistente (Shift+Alt+A) foi desabilitado em v0.10.4 pra focar feedback
+# no ditado puro. Pra reativar, flip AssistantEnabled=true no config.json.
 #
 # Atalho no Desktop nao eh criado por default (-WithDesktopShortcut pra opt-in).
 # Auto-update pode ser desabilitado com -NoAutoUpdate (raramente desejado).
@@ -209,6 +211,9 @@ $Config = [ordered]@{
         ProfileSlug      = 'mecanico'
         Hotkey           = 'Shift+Alt+D'
         AssistantHotkey  = 'Shift+Alt+A'
+        # v0.10.4: assistente desabilitado por enquanto. Flip pra $true depois
+        # que reativar (e adicionar de volta o item no tray de App.axaml).
+        AssistantEnabled = $false
     }
 }
 $Config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
@@ -289,10 +294,9 @@ if (-not $NoLaunch) {
 Write-Host ""
 Write-Host "OK -- VoiceLev $Version instalado." -ForegroundColor Green
 Write-Host ""
-Write-Host "Hotkeys globais:" -ForegroundColor Cyan
+Write-Host "Hotkey global:" -ForegroundColor Cyan
 Write-Host "  Shift+Alt+D  -- Ditado (transcreve audio do mic e cola onde o cursor esta)" -ForegroundColor White
-Write-Host "  Shift+Alt+A  -- Abrir chat do assistente" -ForegroundColor White
 Write-Host ""
-Write-Host "Tray icon no canto inferior direito permite abrir Settings, Assistente, ou sair." -ForegroundColor White
+Write-Host "Tray icon no canto inferior direito permite abrir Settings ou sair." -ForegroundColor White
 Write-Host ""
 Write-Host "O app SOBE MINIMIZADO no proximo login do Windows (HKCU\...\Run)." -ForegroundColor DarkGray
